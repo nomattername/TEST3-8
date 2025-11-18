@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>旅游咨询</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#00B42A',
+                        neutral: '#F5F5F5',
+                        'neutral-dark': '#E5E5E5',
+                        warning: '#FF7D00',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        /* 组件样式 */
+        @layer components {
+            .end-chat-button {
+                @apply bg-red-500 text-white py-3 px-4 rounded-lg w-full hover:bg-red-600 transition-all duration-300 transform-gpu;
+            }
+
+            .system-message {
+                @apply bg-gray-200 text-gray-600 py-1.5 px-3 rounded-full text-xs mx-auto my-2.5 max-w-[60%] text-center;
+            }
+
+            .interaction-hint {
+                @apply fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-primary/90 text-white py-2 px-4 rounded-full text-sm shadow-lg z-50 opacity-0 transition-opacity duration-300;
+            }
+
+            .hint-visible {
+                @apply opacity-100;
+            }
+
+            .modal {
+                @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300;
+            }
+
+            .modal-content {
+                @apply bg-white rounded-xl p-6 max-w-xs w-full mx-4 transform scale-95 transition-all duration-300;
+            }
+
+            .modal-visible {
+                @apply opacity-100 pointer-events-auto;
+            }
+
+            .modal-visible .modal-content {
+                @apply scale-100;
+            }
+
+            .scenario-box {
+                @apply bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded;
+            }
+
+            .warning-box {
+                @apply bg-warning/10 border border-warning/30 text-warning p-4 mb-6 rounded;
+            }
+        }
+
+        /* 工具类样式 */
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+
+            /* 消息容器：控制左右对齐 */
+            .chat-message-user {
+                @apply flex justify-end mb-4;
+            }
+
+            .chat-message-bot {
+                @apply flex justify-start mb-4;
+            }
+
+            /* 头像样式：圆形 */
+            .chat-avatar {
+                @apply w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm;
+            }
+
+            /* 用户头像：蓝色背景 */
+            .user-avatar {
+                @apply bg-primary border border-primary/20;
+            }
+
+            /* 客服头像：灰色背景 */
+            .bot-avatar {
+                @apply bg-gray-200 text-gray-700 border border-gray-300;
+            }
+
+            /* 消息气泡 */
+            .chat-bubble {
+                @apply max-w-[70%] px-4 py-2 rounded-lg shadow-sm;
+            }
+
+            .chat-bubble-user {
+                @apply bg-primary text-white rounded-bl-lg rounded-br-lg rounded-tl-lg;
+            }
+
+            .chat-bubble-bot {
+                @apply bg-neutral-dark text-gray-800 rounded-tr-lg rounded-br-lg rounded-tl-lg;
+            }
+
+            .typing-indicator {
+                @apply flex space-x-1 animate-pulse;
+            }
+
+            .typing-dot {
+                @apply w-2 h-2 bg-gray-400 rounded-full;
+            }
+
+            .countdown {
+                @apply bg-warning/10 border border-warning/30 text-warning px-3 py-1 rounded-full text-xs inline-block;
+            }
+
+            .message-button {
+                @apply bg-gray-100 hover:bg-gray-200 transition-colors duration-200;
+            }
+
+            .autosize-textarea {
+                @apply resize-none overflow-hidden w-full max-w-[80%] mx-auto;
+            }
+
+            .small-text {
+                @apply text-xs;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans">
+    <!-- 场景引导页 -->
+    <div id="scenario-page" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6">
+        <div class="max-w-md w-full">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">旅游咨询</h1>
+                <p class="text-gray-600">与客服对话获取行程建议</p>
+            </div>
+            <div class="scenario-box">
+                <p class="text-gray-700">
+                       <strong>情境:</strong> 您计划本周末前往马来西亚<strong>亚庇</strong>，开启为期4天3晚的旅程。您特别期待能住在临海的酒店，<span
+                        style="color: red; font-weight: bold;">想近距离地感受海风美食与热带氛围</span>。由于出发时间临近，您希望尽快找到合适的酒店方案。为了解相关信息，您打开旅游平台，进入客服咨询界面。
+                </p>
+            </div>
+            <div class="warning-box">
+                <p class="text-gray-700 font-medium">
+                    <i class="fa fa-clock-o mr-2"></i>时间紧迫：请尽快做出决策，以免耽误行程！
+                </p>
+            </div>
+            <button id="start-chat" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition duration-300 ease-in-out">
+                开始对话
+            </button>
+        </div>
+    </div>
+
+    <!-- 手机模拟容器 -->
+    <div id="phone-container" class="fixed inset-0 bg-gray-900/80 z-40 flex items-center justify-center p-4 hidden">
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden border-8 border-gray-800">
+            <!-- 顶部状态栏 -->
+            <div class="bg-gray-800 text-white text-xs flex items-center justify-between px-4 py-1.5">
+                <span>9:41 AM</span>
+                <div class="flex items-center space-x-1">
+                    <i class="fa fa-signal"></i>
+                    <i class="fa fa-wifi"></i>
+                    <i class="fa fa-battery-three-quarters"></i>
+                </div>
+            </div>
+            <!-- 应用标题栏 -->
+            <div class="bg-primary text-white py-3 px-4 flex items-center">
+                <i class="fa fa-arrow-left mr-3 cursor-pointer"></i>
+                <div>
+                    <h2 class="font-medium small-text">AI小旅</h2>
+                    <p class="text-xs opacity-80">智能旅游助手</p>
+                </div>
+                <!-- 修改点：将倒计时改为三个点的任务栏图标 -->
+                <div class="ml-auto flex items-center">
+                    <button id="task-menu-button" class="text-white hover:text-gray-200 transition-colors">
+                        <i class="fa fa-ellipsis-v"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- 聊天内容区 -->
+            <div id="chat-container" class="h-[calc(100vh-240px)] max-h-[500px] overflow-y-auto p-3 bg-gray-50 flex flex-col">
+                <!-- 动态渲染聊天内容 -->
+            </div>
+            <!-- 输入区 -->
+            <div class="border-t border-gray-200 p-2 flex items-center">
+                <button class="text-gray-500 mr-2">
+                    <i class="fa fa-plus-circle text-lg"></i>
+                </button>
+                <div class="relative flex-grow flex justify-center">
+                    <textarea id="message-input" placeholder="点击此处发送消息" class="autosize-textarea py-1.5 px-3 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer message-button text-sm" readonly></textarea>
+                    <button id="send-button" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-primary opacity-0 cursor-default">
+                        <i class="fa fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- 交互提示 -->
+        <div id="interaction-hint" class="interaction-hint">
+            <i class="fa fa-hand-pointer-o mr-1"></i> 点击下方对话框继续对话
+        </div>
+    </div>
+
+    <!-- 结束对话模态框 -->
+    <div id="end-chat-modal" class="modal">
+        <div class="modal-content">
+            <div class="text-center mb-4">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-500 mb-4">
+                    <i class="fa fa-comments-o text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-800 mb-2">结束对话</h3>
+                <p class="text-gray-600 small-text">确定要结束当前对话吗？</p>
+            </div>
+            <div class="flex space-x-3">
+                <button id="cancel-end-chat" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg">
+                    取消
+                </button>
+                <button id="confirm-end-chat" class="flex-1 end-chat-button">
+                    结束对话
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 对话内容
+        const conversations = [
+            { user: '我临时计划去马来西亚亚庇旅游，时间比较赶，想尽快找一家靠海、有度假氛围的酒店。', bot: '您考虑的很周到~度假氛围对旅游体验真的很重要！方便问一下出行人数和时间吗？' },
+            { user: '三个人，这周末就出发。', bot: '好的~那我帮您梳理几个比较受欢迎的住宿类型：<br><b>海景度假酒店</b>：位于丹绒亚路海滩，房间可直接观海，步行可达日落点；<br><b>精品民宿</b>：位于市区靠近夜市，出行方便，能体验地道的热带生活；<br><b>私人别墅区</b>：带泳池和独立庭院，适合放松休憩。<br>如果您想更细致地了解，比如早餐、交通或附近餐厅推荐，也可以直接问我～'},
+             { user: '听起来不错！想问问海景酒店的早餐是什么形式呀？附近有没有口碑好的海鲜餐厅？', bot: '海景酒店的早餐是半自助形式哦，既有西式餐点，也有椰浆饭、沙爹串等本地特色美食，还能单点现做的海鲜粥，饮品不限量供应鲜榨果汁和咖啡～ 附近步行 15 分钟有一家 “海滨鲜捞餐厅”，本地人常去，能现场挑选鲜活海鲜现做，推荐奶油老虎虾和清蒸鱼，窗边位还能边吃边看海，超有度假感！' },
+            { user: '好的，那这个酒店要提前多久预定比较合适？', bot: '一般建议提前2-3周预定，这样能锁定更好的海景房和价格；有些热门房型会在节假日前售罄。' },
+            { user: '那预定时需要提供什么信息？', bot: '通常只需提供入住人<b>姓名</b>、<b>联系电话</b>、<b>入住日期</b>这些基础资料，用于确认预订-3周预定。' },
+            { user: '那这些信息会被保存多久？', bot: '理解您的担心~系统会暂时保存相关信息，以便日后行程确认或售后服务，平台会对个人信息进行<b>加密</b>。' },
+            { user: '好的，那我回头尽快定一下，谢谢你。', bot: '不客气😊～旅行中最重要的就是放松享受，有任何问题都可以再来找我哦~' }
+        ];
+
+        let currentStep = 0;
+        let interactionHintShown = false;
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const scenarioPage = document.getElementById('scenario-page');
+        const phoneContainer = document.getElementById('phone-container');
+        const startChatButton = document.getElementById('start-chat');
+        const interactionHint = document.getElementById('interaction-hint');
+        const endChatModal = document.getElementById('end-chat-modal');
+        const cancelEndChat = document.getElementById('cancel-end-chat');
+        const confirmEndChat = document.getElementById('confirm-end-chat');
+        // 新增：任务菜单按钮
+        const taskMenuButton = document.getElementById('task-menu-button');
+
+        // 自动调整textarea高度
+        function adjustTextareaHeight() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        }
+
+        // 添加系统消息
+        function addSystemMessage(message) {
+            const div = document.createElement('div');
+            div.className = 'w-full flex justify-center my-2';
+            div.innerHTML = `<div class="system-message">${message}</div>`;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 显示初始问候
+        function showInitialGreeting() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message-bot';
+            messageDiv.innerHTML = `
+                <div class="chat-avatar bot-avatar">客服</div>
+                <div class="chat-bubble chat-bubble-bot">
+                    <p class="small-text">您好，我是您的AI旅游助手小旅🤖，很高兴为你提供服务，请问您有什么需要帮助的吗？</p>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // 添加系统提示
+            setTimeout(() => addSystemMessage("接下来为您提供服务"), 500);
+
+            // 设置第一个用户消息
+            setTimeout(() => {
+                if (conversations.length > 0) {
+                    messageInput.value = conversations[0].user;
+                    adjustTextareaHeight();
+
+                    // 显示交互提示
+                    if (!interactionHintShown) {
+                        setTimeout(() => {
+                            interactionHint.classList.add('hint-visible');
+                            interactionHintShown = true;
+                        }, 500);
+                    }
+                }
+            }, 2000);
+        }
+
+        // 添加聊天消息
+        function addMessage(sender, message) {
+            interactionHint.classList.remove('hint-visible');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender === 'user' ? 'chat-message-user' : 'chat-message-bot';
+
+            messageDiv.innerHTML = `
+                ${sender === 'user' ? '' : '<div class="chat-avatar bot-avatar">客服</div>'}
+                <div class="chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'}">
+                    <p class="small-text">${formatMessage(message)}</p>
+                </div>
+                ${sender === 'user' ? '<div class="chat-avatar user-avatar">我</div>' : ''}
+            `;
+
+            if (sender === 'user') {
+                // 保存当前消息内容
+                const currentMessage = messageInput.value;
+                
+                // 清空输入框并恢复默认提示
+                messageInput.value = '';
+                messageInput.placeholder = '点击此处发送消息';
+                adjustTextareaHeight();
+                
+                // 直接添加用户消息到对话框（无加载效果）
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                // 发送客服回复
+                if (currentStep < conversations.length) {
+                    setTimeout(() => {
+                        addMessage('bot', conversations[currentStep].bot);
+                        currentStep++;
+                        // 如果是最后一条消息，显示结束对话提示
+                        if (currentStep === conversations.length) {
+                            setTimeout(() => {
+                                endChatModal.classList.add('modal-visible');
+                            }, 4000);
+                        }
+                    }, 1500);
+                }
+            } else {
+                // 客服消息保留加载效果
+                addTypingIndicator();
+                setTimeout(() => {
+                    removeTypingIndicator();
+                    chatContainer.appendChild(messageDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    // 关键修改：只有在客服消息完全发送后，才显示下一条用户消息
+                    if (currentStep < conversations.length) {
+                        setTimeout(() => {
+                            messageInput.value = conversations[currentStep].user;
+                            messageInput.placeholder = '';
+                            adjustTextareaHeight();
+                            
+                            // 显示交互提示
+                            if (!interactionHintShown) {
+                                interactionHint.classList.add('hint-visible');
+                                interactionHintShown = true;
+                            }
+                        }, 500);
+                    }
+                }, 1500);
+            }
+        }
+
+        // 添加打字指示器
+        function addTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message-bot';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `
+                <div class="chat-avatar bot-avatar">客服</div>
+                <div class="chat-bubble chat-bubble-bot">
+                    <div class="typing-indicator">
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 移除打字指示器
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // 格式化消息
+        function formatMessage(message) {
+            // 处理换行
+            let formatted = message.replace(/\n/g, '<br>');
+            // 处理加粗
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<span class="font-bold">$1</span>');
+            // 处理列表
+            formatted = formatted.replace(/^\s*\d+\.\s+(.*)$/gm, '<div class="flex items-start mb-1"><span class="mr-2 mt-0.5 font-medium">•</span><span>$1</span></div>');
+            return formatted;
+        }
+
+        // 处理用户输入
+        function handleUserInput() {
+            if (currentStep < conversations.length) {
+                const message = conversations[currentStep].user;
+                addMessage('user', message);
+            }
+        }
+
+        // 新增：任务菜单点击事件
+        function handleTaskMenuClick() {
+            alert('任务菜单功能即将开放！');
+        }
+
+        // 事件监听
+        messageInput.addEventListener('click', handleUserInput);
+        sendButton.addEventListener('click', (e) => e.preventDefault());
+        // 新增：任务菜单按钮点击事件
+        taskMenuButton.addEventListener('click', handleTaskMenuClick);
+
+        startChatButton.addEventListener('click', () => {
+            scenarioPage.classList.add('hidden');
+            phoneContainer.classList.remove('hidden');
+            setTimeout(showInitialGreeting, 500);
+        });
+
+        cancelEndChat.addEventListener('click', () => {
+            endChatModal.classList.remove('modal-visible');
+        });
+
+        confirmEndChat.addEventListener('click', () => {
+            try {
+                window.close();
+            } catch (e) {
+                document.body.innerHTML = '';
+                window.location.href = 'about:blank';
+            }
+        });
+    </script>
+</body>
+
+</html>
